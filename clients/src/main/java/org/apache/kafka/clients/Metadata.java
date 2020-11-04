@@ -87,15 +87,25 @@ public final class Metadata {
      */
     public Metadata(long refreshBackoffMs, long metadataExpireMs, boolean allowAutoTopicCreation,
                     boolean topicExpiryEnabled, ClusterResourceListeners clusterResourceListeners) {
+        // 元数据刷新间隔，即 retry.backoff.ms 默认值位 100
         this.refreshBackoffMs = refreshBackoffMs;
+        // 元数据过期时间 5 * 60 * 1000 ms
         this.metadataExpireMs = metadataExpireMs;
+        //  是否运行自动创建 Topic
         this.allowAutoTopicCreation = allowAutoTopicCreation;
+        // 是否运行 Topic 过期
         this.topicExpiryEnabled = topicExpiryEnabled;
+        // 上次刷新时间
         this.lastRefreshMs = 0L;
+        // 上次成功刷新的时间
         this.lastSuccessfulRefreshMs = 0L;
+        // 版本号
         this.version = 0;
+        // 元数据信息
         this.cluster = Cluster.empty();
+        // 是否需要更新
         this.needUpdate = false;
+        // 所有订阅的 topic
         this.topics = new HashMap<>();
         this.listeners = new ArrayList<>();
         this.clusterResourceListeners = clusterResourceListeners;

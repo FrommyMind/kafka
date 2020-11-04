@@ -34,21 +34,30 @@ import java.util.Set;
 public final class Cluster {
 
     private final boolean isBootstrapConfigured;
-    private final List<Node> nodes;
+    private final List<Node> nodes; // 存储 Kafka Broker 的信息
     private final Set<String> unauthorizedTopics;
-    private final Set<String> internalTopics;
-    private final Node controller;
+    private final Set<String> internalTopics; // 内置的 Topic
+    private final Node controller; // 控制节点
+    // Topic分区 -> 分区信息 可以根据 Topic 的名称和分区的编号直接得到分区信息
     private final Map<TopicPartition, PartitionInfo> partitionsByTopicPartition;
+    // Topic -> List<分区信息> 可以根据 Topic 的名称直接得到 Topic 对应的所有分区信息
     private final Map<String, List<PartitionInfo>> partitionsByTopic;
+    // Topic -> List<分区信息> 可以使用的分区信息
     private final Map<String, List<PartitionInfo>> availablePartitionsByTopic;
+    // Broker -> List<分区信息> 可以根据 Broker 节点，直接获取节点上的所有的分区
     private final Map<Integer, List<PartitionInfo>> partitionsByNode;
+    // id -> Broker  Broker 和 Broker ID 的映射关系
     private final Map<Integer, Node> nodesById;
+    // ClusterId
     private final ClusterResource clusterResource;
 
     /**
      * Create a new cluster with the given id, nodes and partitions
+     *  使用给定的 clusterId，nodes 和 分区来创建一个新的 cluster 对象
      * @param nodes The nodes in the cluster
      * @param partitions Information about a subset of the topic-partitions this cluster hosts
+     *
+     *
      */
     public Cluster(String clusterId,
                    Collection<Node> nodes,

@@ -231,15 +231,19 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private static final AtomicInteger PRODUCER_CLIENT_ID_SEQUENCE = new AtomicInteger(1);
     private static final String JMX_PREFIX = "kafka.producer";
     public static final String NETWORK_THREAD_PREFIX = "kafka-producer-network-thread";
-
+    // Producer 会有一个 clientId
     private final String clientId;
     // Visible for testing
     final Metrics metrics;
+    // 分区器
     private final Partitioner partitioner;
     private final int maxRequestSize;
     private final long totalMemorySize;
+    // 对元数据的封装的逻辑对象， 元数据在 Cluster 里。
     private final Metadata metadata;
+    // 存储在内存里等待要发送的数据的队列
     private final RecordAccumulator accumulator;
+    // 接收发送指令的后台进程
     private final Sender sender;
     private final Thread ioThread;
     private final CompressionType compressionType;
@@ -247,6 +251,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private final Time time;
     private final ExtendedSerializer<K> keySerializer;
     private final ExtendedSerializer<V> valueSerializer;
+    // Producer 端的配置文件
     private final ProducerConfig producerConfig;
     private final long maxBlockTimeMs;
     private final int requestTimeoutMs;
@@ -317,16 +322,21 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
     private KafkaProducer(ProducerConfig config, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         try {
             Map<String, Object> userProvidedConfigs = config.originals();
+            // 获取 producer 的配置项
             this.producerConfig = config;
+            // 获取当前系统的时间
             this.time = Time.SYSTEM;
+            //  获取客户端ID
             String clientId = config.getString(ProducerConfig.CLIENT_ID_CONFIG);
+            // 如果没有获取到客户端ID，则生成一个客户端ID
             if (clientId.length() <= 0)
                 clientId = "producer-" + PRODUCER_CLIENT_ID_SEQUENCE.getAndIncrement();
             this.clientId = clientId;
-
+            //  事务ID
             String transactionalId = userProvidedConfigs.containsKey(ProducerConfig.TRANSACTIONAL_ID_CONFIG) ?
                     (String) userProvidedConfigs.get(ProducerConfig.TRANSACTIONAL_ID_CONFIG) : null;
             LogContext logContext;
+            // 如果没有获取到事务ID，则以普通的格式格式化，否则需要以事务的格式对数据进行格式化
             if (transactionalId == null)
                 logContext = new LogContext(String.format("[Producer clientId=%s] ", clientId));
             else
@@ -344,8 +354,11 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
             reporters.add(new JmxReporter(JMX_PREFIX));
             this.metrics = new Metrics(metricConfig, reporters, time);
             ProducerMetrics metricsRegistry = new ProducerMetrics(this.metrics);
+            // 获取分区器
             this.partitioner = config.getConfiguredInstance(ProducerConfig.PARTITIONER_CLASS_CONFIG, Partitioner.class);
+            // retry.backoff.ms : 请求失败的重试间隔时间，默认是100ms
             long retryBackoffMs = config.getLong(ProducerConfig.RETRY_BACKOFF_MS_CONFIG);
+            // 获取序列化的类
             if (keySerializer == null) {
                 this.keySerializer = ensureExtended(config.getConfiguredInstance(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
                                                                                          Serializer.class));
@@ -365,24 +378,35 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
 
             // load interceptors and make sure they get clientId
             userProvidedConfigs.put(ProducerConfig.CLIENT_ID_CONFIG, clientId);
+            // 拦截器
             List<ProducerInterceptor<K, V>> interceptorList = (List) (new ProducerConfig(userProvidedConfigs, false)).getConfiguredInstances(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG,
                     ProducerInterceptor.class);
             this.interceptors = interceptorList.isEmpty() ? null : new ProducerInterceptors<>(interceptorList);
             ClusterResourceListeners clusterResourceListeners = configureClusterResourceListeners(keySerializer, valueSerializer, interceptorList, reporters);
+            // 元数据
+            // metadata.max.age.ms 元数据过期时间 5 * 60 * 1000
             this.metadata = new Metadata(retryBackoffMs, config.getLong(ProducerConfig.METADATA_MAX_AGE_CONFIG),
                     true, true, clusterResourceListeners);
+            // 最大请求的大小，max.request.size 默认值是 1 * 1024 * 1024 如果消息的内容比较大，则必须修改这个参数
             this.maxRequestSize = config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG);
+            // 用于队列缓存的内存大小，buffer.memory 默认是 32 * 1024 * 1024
             this.totalMemorySize = config.getLong(ProducerConfig.BUFFER_MEMORY_CONFIG);
+            // 压缩的类型 默认为 none
             this.compressionType = CompressionType.forName(config.getString(ProducerConfig.COMPRESSION_TYPE_CONFIG));
-
+            // 最大锁定时间 max.block.ms 默认是 1 * 60 * 1000
             this.maxBlockTimeMs = config.getLong(ProducerConfig.MAX_BLOCK_MS_CONFIG);
+            // 请求超时时间 request.timeout.ms 默认是 40 * 1000
             this.requestTimeoutMs = config.getInt(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG);
             this.transactionManager = configureTransactionState(config, logContext, log);
+            // 重试次数 retries 默认是 0
             int retries = configureRetries(config, transactionManager != null, log);
+            // 发送出去没有接收到callback的消息的条数  max.in.flight.requests.per.connection 默认是 5 ，
             int maxInflightRequests = configureInflightRequests(config, transactionManager != null);
+            // acks 默认值是 1， 可选值为 1、0、-1、all，其中all=-1
             short acks = configureAcks(config, transactionManager != null, log);
 
             this.apiVersions = new ApiVersions();
+            // 创建一个新的 RecordAccumulator 对象
             this.accumulator = new RecordAccumulator(logContext,
                     config.getInt(ProducerConfig.BATCH_SIZE_CONFIG),
                     this.totalMemorySize,
@@ -394,6 +418,7 @@ public class KafkaProducer<K, V> implements Producer<K, V> {
                     apiVersions,
                     transactionManager);
             List<InetSocketAddress> addresses = ClientUtils.parseAndValidateAddresses(config.getList(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG));
+            // 更新元数据
             this.metadata.update(Cluster.bootstrap(addresses), Collections.<String>emptySet(), time.milliseconds());
             ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config);
             Sensor throttleTimeSensor = Sender.throttleTimeSensor(metricsRegistry.senderMetrics);

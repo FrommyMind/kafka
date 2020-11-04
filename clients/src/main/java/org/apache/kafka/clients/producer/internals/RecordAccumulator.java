@@ -88,7 +88,7 @@ public final class RecordAccumulator {
     /**
      * Create a new record accumulator
      *
-     * @param logContext The log context used for logging
+     * @param logContext The log context used for logging // 日志上下文
      * @param batchSize The size to use when allocating {@link MemoryRecords} instances
      * @param totalSize The maximum memory the record accumulator can use.
      * @param compression The compression codec for the records
@@ -103,12 +103,12 @@ public final class RecordAccumulator {
      * @param transactionManager The shared transaction state object which tracks producer IDs, epochs, and sequence
      *                           numbers per partition.
      */
-    public RecordAccumulator(LogContext logContext,
-                             int batchSize,
-                             long totalSize,
-                             CompressionType compression,
-                             long lingerMs,
-                             long retryBackoffMs,
+    public RecordAccumulator(LogContext logContext, // 日志上下文
+                             int batchSize, // batch 的大小
+                             long totalSize, // 总存储大小
+                             CompressionType compression, // 压缩类型
+                             long lingerMs, // 最长等待时间，超过这个时间，数据必须被发送出去
+                             long retryBackoffMs, // 重试间隔时间
                              Metrics metrics,
                              Time time,
                              ApiVersions apiVersions,
@@ -124,6 +124,7 @@ public final class RecordAccumulator {
         this.retryBackoffMs = retryBackoffMs;
         this.batches = new CopyOnWriteMap<>();
         String metricGrpName = "producer-metrics";
+        // 可用的内存池 totalSize 32M，batchSize 16KB
         this.free = new BufferPool(totalSize, batchSize, metrics, time, metricGrpName);
         this.incomplete = new IncompleteBatches();
         this.muted = new HashSet<>();
